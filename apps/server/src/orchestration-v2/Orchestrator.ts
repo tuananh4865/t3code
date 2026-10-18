@@ -2693,6 +2693,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       }
       if (
         !Number.isFinite(resetMs) ||
+        thread.lineage.relationshipToParent === "subagent" ||
         thread.archivedAt !== null ||
         thread.settledOverride === "settled" ||
         run?.id !== command.limitRecovery.runId ||
@@ -8487,17 +8488,46 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           payload: { ...run, queueHeld: true },
         });
       }
-      const pullRequests = thread.pullRequests ?? [];
+      let nextThread = thread;
+      if (
+        nextThread.limitRecovery != null &&
+        (nextThread.limitRecovery.autoResume || nextThread.limitRecovery.snooze)
+      ) {
+        const clearsLimitSnooze =
+          nextThread.limitRecovery.snooze &&
+          nextThread.snoozedUntil != null &&
+          DateTime.toEpochMillis(nextThread.snoozedUntil) ===
+            Date.parse(nextThread.limitRecovery.resetAt);
+        nextThread = {
+          ...nextThread,
+          limitRecovery: {
+            ...nextThread.limitRecovery,
+            autoResume: false,
+            snooze: false,
+            requestId: input.command.commandId,
+          },
+          ...(clearsLimitSnooze ? { snoozedUntil: null, snoozedAt: null } : {}),
+        };
+        yield* emitEvent({
+          type: "thread.metadata-updated",
+          threadId: thread.id,
+          providerInstanceId: thread.providerInstanceId,
+          occurredAt: input.now,
+          payload: nextThread,
+        });
+      }
+      const pullRequests = nextThread.pullRequests ?? [];
       if (pullRequests.some((link) => link.watch !== undefined)) {
+        nextThread = {
+          ...nextThread,
+          pullRequests: pullRequests.map((link) => withPullRequestWatch(link, undefined)),
+        };
         yield* emitEvent({
           type: "thread.pull-request-synced",
           threadId: thread.id,
           providerInstanceId: thread.providerInstanceId,
           occurredAt: input.now,
-          payload: {
-            ...thread,
-            pullRequests: pullRequests.map((link) => withPullRequestWatch(link, undefined)),
-          },
+          payload: nextThread,
         });
       }
       const cohortRunIds = new Set(input.cohortRunIds);
