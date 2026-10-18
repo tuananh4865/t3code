@@ -7739,6 +7739,7 @@ export default function ChatView(props: ChatViewProps) {
   const limitRecoveryBanner =
     serverRuntime?.status === "failed" &&
     serverRuntime.lastErrorClass === "usage_limit" &&
+    activeThreadShell?.lineage.relationshipToParent !== "subagent" &&
     activeThreadShell?.latestRun
       ? usageLimitRecoveryBannerItem({
           runId: activeThreadShell.latestRun.runId,

@@ -15,6 +15,7 @@ export function limitRecoveryCommand(
   snooze = false,
 ): OrchestrationV2Command | null {
   if (
+    thread.lineage.relationshipToParent === "subagent" ||
     thread.status !== "failed" ||
     thread.lastErrorClass !== "usage_limit" ||
     !thread.latestRunId ||

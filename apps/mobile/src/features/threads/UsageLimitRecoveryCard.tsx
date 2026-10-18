@@ -27,6 +27,7 @@ export function UsageLimitRecoveryCard({
   const scheduled =
     recovery?.runId === runId && recovery?.resetAt === resetAt && recovery?.autoResume;
   if (
+    thread.lineage.relationshipToParent === "subagent" ||
     thread.runtime?.status !== "failed" ||
     thread.runtime.lastErrorClass !== "usage_limit" ||
     !runId

@@ -2403,6 +2403,7 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         if (lastErrorClass === "usage_limit") {
           assert.deepEqual(candidate, {
             id: sqlShell.id,
+            lineage: sqlShell.lineage,
             status: sqlShell.status,
             lastErrorClass: sqlShell.lastErrorClass,
             usageLimitResetAt: sqlShell.usageLimitResetAt,
@@ -2549,6 +2550,7 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
       for (const [field, value] of [
         ["archivedAt", DateTime.formatIso(now)],
         ["settledOverride", "settled"],
+        ["lineage.relationshipToParent", "subagent"],
       ]) {
         yield* sql`UPDATE orchestration_v2_projection_threads
           SET payload_json = json_set(payload_json, ${`$.${field}`}, ${value})

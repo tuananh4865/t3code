@@ -142,6 +142,7 @@ export type ProjectionRecoveryKind =
 export type ProjectionLimitRecoveryCandidate = Pick<
   OrchestrationV2ThreadShell,
   | "id"
+  | "lineage"
   | "status"
   | "lastErrorClass"
   | "latestRunId"
@@ -3432,6 +3433,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
           WHERE t.deleted_at IS NULL
             AND json_extract(t.payload_json, '$.archivedAt') IS NULL
             AND json_extract(t.payload_json, '$.settledOverride') IS NOT 'settled'
+            AND json_extract(t.payload_json, '$.lineage.relationshipToParent') IS NOT 'subagent'
             AND json_extract(item.payload_json, '$.failure.class') = 'usage_limit'
             AND json_extract(item.payload_json, '$.failure.resetAt') IS NOT NULL
             AND julianday(json_extract(item.payload_json, '$.failure.resetAt')) > julianday(COALESCE(r.completed_at, json_extract(t.payload_json, '$.updatedAt')))
@@ -3474,6 +3476,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
           if (summary.lastErrorClass !== "usage_limit") continue;
           candidates.push({
             id: thread.id,
+            lineage: thread.lineage,
             status: "failed",
             lastErrorClass: summary.lastErrorClass,
             usageLimitResetAt: summary.usageLimitResetAt,
@@ -5903,7 +5906,8 @@ export const layerMemory: Layer.Layer<ProjectionStoreV2> = Layer.effect(
                 ({ thread }) =>
                   thread.deletedAt === null &&
                   thread.archivedAt === null &&
-                  thread.settledOverride !== "settled",
+                  thread.settledOverride !== "settled" &&
+                  thread.lineage.relationshipToParent !== "subagent",
               )
               .map(threadShellFromProjection)
               .filter(
