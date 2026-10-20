@@ -1641,4 +1641,54 @@ describe("DesktopWindow", () => {
       }).pipe(Effect.provide(layer));
     }),
   );
+
+  it.effect("prepends T3 voice dictionary suggestions ahead of Chromium spellcheck suggestions", () =>
+    Effect.gen(function* () {
+      const fakeWindow = makeFakeBrowserWindow();
+      const createCount = yield* Ref.make(0);
+      const mainWindow = yield* Ref.make<Option.Option<Electron.BrowserWindow>>(Option.none());
+      const popupTemplates: Array<ReadonlyArray<Electron.MenuItemConstructorOptions>> = [];
+      const layer = makeTestLayer({
+        window: fakeWindow.window,
+        createCount,
+        mainWindow,
+        onPopupTemplate: ({ template }) =>
+          Effect.sync(() => {
+            popupTemplates.push(template);
+          }),
+      });
+
+      yield* Effect.gen(function* () {
+        const desktopWindow = yield* DesktopWindow.DesktopWindow;
+        yield* desktopWindow.handleBackendReady(new URL("http://127.0.0.1:3773"));
+
+        const onContextMenu = fakeWindow.webContentsListeners.get("context-menu");
+        if (!onContextMenu) {
+          return yield* Effect.die("context-menu listener was not registered");
+        }
+        onContextMenu(
+          { preventDefault: () => {} },
+          {
+            misspelledWord: "typescirpt",
+            dictionarySuggestions: ["typescripts"],
+            linkURL: "",
+            mediaType: "none",
+            x: 10,
+            y: 10,
+            editFlags: {
+              canCut: false,
+              canCopy: false,
+              canPaste: true,
+              canSelectAll: true,
+            },
+          },
+        );
+        yield* Effect.promise(() => Promise.resolve());
+
+        assert.equal(popupTemplates.length, 1);
+        assert.equal(popupTemplates[0]?.[0]?.label, "TypeScript");
+        assert.equal(popupTemplates[0]?.[1]?.label, "typescripts");
+      }).pipe(Effect.provide(layer));
+    }),
+  );
 });

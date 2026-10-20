@@ -3,6 +3,9 @@ import {
   AuthOrchestrationOperateScope,
   AuthOrchestrationReadScope,
   EnvironmentHttpApi,
+  RealtimeVoice,
+  VoiceDictionary,
+  VoiceSubscriptionProvider,
 } from "@t3tools/contracts";
 import { isDevProxiedPath } from "@t3tools/shared/devProxy";
 import { decodeOtlpTraceRecords } from "@t3tools/shared/observability";
@@ -48,6 +51,7 @@ import {
 import * as ServerEnvironment from "./environment/ServerEnvironment.ts";
 import { WEBHOOK_ROUTE_PREFIX } from "./scheduledTasks/ScheduledTaskService.ts";
 import { browserApiCorsAllowedHeaders, browserApiCorsAllowedMethods } from "./httpCors.ts";
+import * as ChatGptVoice from "./voice/ChatGptVoiceService.ts";
 
 const OTLP_TRACES_PROXY_PATH = "/api/observability/v1/traces";
 const LOOPBACK_HOSTNAMES = new Set(["127.0.0.1", "::1", "localhost"]);
@@ -481,6 +485,117 @@ export const layerAttachmentUploadRoute = HttpRouter.add(
       ? HttpServerResponse.empty({ status: 204 })
       : HttpServerResponse.text(stored.detail, { status: stored.status });
   }),
+);
+
+const VOICE_ROUTE_PREFIX = "/api/voice";
+
+const VoiceTranscribeBody = Schema.Struct({
+  audioBase64: Schema.String,
+  mimeType: Schema.String,
+  dictionary: Schema.optionalKey(VoiceDictionary),
+  provider: Schema.optionalKey(VoiceSubscriptionProvider),
+});
+const VoiceRealtimeStartBody = Schema.Struct({
+  sdp: Schema.String,
+  voice: Schema.optionalKey(RealtimeVoice),
+  dictionary: Schema.optionalKey(VoiceDictionary),
+  provider: Schema.optionalKey(VoiceSubscriptionProvider),
+});
+const VoiceRealtimeStopBody = Schema.Struct({ sessionId: Schema.String });
+
+const voiceJsonRoute = <S extends Schema.Decoder<unknown>>(
+  path: `/${string}`,
+  bodySchema: S,
+  handle: (
+    body: S["Type"],
+    voice: ChatGptVoice.ChatGptVoiceService["Service"],
+  ) => Effect.Effect<HttpServerResponse.HttpServerResponse, ChatGptVoice.ChatGptVoiceError>,
+) =>
+  HttpRouter.add(
+    "POST",
+    path,
+    Effect.gen(function* () {
+      yield* authenticateRawRouteWithScope(AuthOrchestrationOperateScope);
+      const request = yield* HttpServerRequest.HttpServerRequest;
+      const voice = yield* ChatGptVoice.ChatGptVoiceService;
+      const body = yield* request.json.pipe(
+        Effect.flatMap(Schema.decodeUnknownEffect(bodySchema)),
+        Effect.option,
+      );
+      if (Option.isNone(body)) {
+        return HttpServerResponse.text("Invalid voice request body.", { status: 400 });
+      }
+      return yield* handle(body.value, voice).pipe(
+        Effect.catch((error) =>
+          Effect.succeed(HttpServerResponse.text(error.message, { status: error.status ?? 502 })),
+        ),
+      );
+    }).pipe(
+      Effect.catchTags({
+        EnvironmentAuthInvalidError: HttpServerRespondable.toResponse,
+        EnvironmentInternalError: HttpServerRespondable.toResponse,
+        EnvironmentScopeRequiredError: HttpServerRespondable.toResponse,
+      }),
+    ),
+  );
+
+const voiceTranscribeRouteLayer = voiceJsonRoute(
+  `${VOICE_ROUTE_PREFIX}/transcribe`,
+  VoiceTranscribeBody,
+  (body, voice) =>
+    voice.transcribe(body).pipe(Effect.map((result) => HttpServerResponse.jsonUnsafe(result))),
+);
+
+const voiceRealtimeStartRouteLayer = voiceJsonRoute(
+  `${VOICE_ROUTE_PREFIX}/realtime/start`,
+  VoiceRealtimeStartBody,
+  (body, voice) =>
+    voice.startRealtime(body).pipe(Effect.map((result) => HttpServerResponse.jsonUnsafe(result))),
+);
+
+const voiceRealtimeStopRouteLayer = voiceJsonRoute(
+  `${VOICE_ROUTE_PREFIX}/realtime/stop`,
+  VoiceRealtimeStopBody,
+  (body, voice) =>
+    voice.stopRealtime(body.sessionId).pipe(Effect.as(HttpServerResponse.empty({ status: 204 }))),
+);
+
+// EventSource cannot send the desktop bearer header. The session id is an unguessable
+// thread id only handed out by the authenticated start route, so it authorizes the stream.
+const voiceRealtimeEventsRouteLayer = HttpRouter.add(
+  "GET",
+  `${VOICE_ROUTE_PREFIX}/realtime/events`,
+  Effect.gen(function* () {
+    const request = yield* HttpServerRequest.HttpServerRequest;
+    const voice = yield* ChatGptVoice.ChatGptVoiceService;
+    const url = HttpServerRequest.toURL(request);
+    const sessionId = Option.isSome(url) ? url.value.searchParams.get("sessionId") : null;
+    if (!sessionId || !voice.hasSession(sessionId)) {
+      return HttpServerResponse.text("Not Found", { status: 404 });
+    }
+    const encoder = new TextEncoder();
+    const frames = voice
+      .events(sessionId)
+      .pipe(Stream.map((event) => encoder.encode(`data: ${JSON.stringify(event)}\n\n`)));
+    return HttpServerResponse.stream(
+      Stream.concat(Stream.make(encoder.encode(": connected\n\n")), frames),
+      {
+        headers: {
+          "content-type": "text/event-stream",
+          // no-transform keeps the compression middleware from buffering the stream.
+          "cache-control": "no-cache, no-transform",
+          connection: "keep-alive",
+        },
+      },
+    );
+  }),
+);
+
+export const voiceRouteLayer = Layer.mergeAll(
+  voiceTranscribeRouteLayer,
+  voiceRealtimeStartRouteLayer,
+  voiceRealtimeStopRouteLayer,
+  voiceRealtimeEventsRouteLayer,
 );
 
 const decodeBuildManifest = Schema.decodeUnknownEffect(

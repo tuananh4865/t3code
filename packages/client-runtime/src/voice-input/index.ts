@@ -1,4 +1,5 @@
 export {
+  resolveTranscriptCommit,
   VoiceInputController,
   VOICE_RECORDING_LIMIT_SECONDS,
   voiceInputBlocksSubmission,

@@ -407,9 +407,15 @@
       "types": "./src/codexAuthHandoff.ts",
       "import": "./src/codexAuthHandoff.ts"
     },
+<<<<<<< origin/main
     "./mcpApp": {
       "types": "./src/mcpApp.ts",
       "import": "./src/mcpApp.ts"
+=======
+    "./voiceDictionary": {
+      "types": "./src/voiceDictionary.ts",
+      "import": "./src/voiceDictionary.ts"
+>>>>>>> feat/voice-dictionary-chatgpt-grok-subscriptions
     }
   },
   "scripts": {

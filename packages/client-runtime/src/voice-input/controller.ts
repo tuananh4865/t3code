@@ -1,4 +1,9 @@
+import type { VoiceDictionary } from "@t3tools/contracts";
 import { replaceTextRange } from "@t3tools/shared/composerTrigger";
+import {
+  normalizeTranscript,
+  withDefaultVoiceDictionary,
+} from "@t3tools/shared/voiceDictionary";
 
 import type { PreparedVoiceTranscription, VoiceTranscriber } from "./transcription.ts";
 
@@ -54,6 +59,7 @@ export type VoiceInputControllerDependencies = {
   readonly releaseRecording: () => Promise<void>;
   readonly deleteRecording: (uri: string) => void;
   readonly readDraft: () => VoiceDraftSnapshot | null;
+  readonly getDictionary?: () => VoiceDictionary | null | undefined;
   readonly commitDraft: (
     text: string,
     selection: { readonly start: number; readonly end: number },
@@ -75,6 +81,7 @@ export function resolveTranscriptCommit(
   current: VoiceDraftSnapshot | null,
   transcript: string,
   locale: string,
+  dictionary?: VoiceDictionary | null,
 ): TranscriptCommitResult {
   if (
     !current ||
@@ -85,7 +92,11 @@ export function resolveTranscriptCommit(
     return { kind: "stale" };
   }
 
-  const replacement = transcript.trim();
+  const normalizedTranscript = normalizeTranscript(
+    transcript,
+    withDefaultVoiceDictionary(dictionary),
+  );
+  const replacement = normalizedTranscript.trim();
   if (replacement.length === 0) {
     return { kind: "empty" };
   }
@@ -413,6 +424,7 @@ export class VoiceInputController {
         this.dependencies.readDraft(),
         transcript,
         transcription.locale,
+        this.dependencies.getDictionary?.(),
       );
       if (result.kind === "stale") {
         this.setError(
