@@ -10,6 +10,7 @@ export type VoiceInputTarget = {
   /** Names the draft being dictated into while its composer is off screen. */
   readonly label?: string;
   readonly readDraft: () => VoiceDraftSnapshot | null;
+  readonly getDictionary?: VoiceInputControllerDependencies["getDictionary"];
   readonly commitDraft: VoiceInputControllerDependencies["commitDraft"];
   readonly subscribe: () => () => void;
 };
@@ -59,6 +60,7 @@ export class VoiceInputSession {
         dependencies.onStateChange(state);
       },
       readDraft: () => this.target?.readDraft() ?? null,
+      getDictionary: () => this.target?.getDictionary?.() ?? dependencies.getDictionary?.(),
       commitDraft: (text, selection) => this.target?.commitDraft(text, selection),
     });
   }

@@ -2,7 +2,11 @@ import { SettingsGroup } from "./SettingsGroup";
 import { useScopedSettingsWriteAllowed } from "./useScopedSettings";
 import { Spinner } from "~/components/ui/spinner";
 import { NotificationSettings } from "./NotificationSettings";
+<<<<<<< origin/main
 import { PRIVACY_POLICY_URL } from "../../legalLinks";
+=======
+import { VoiceDictionarySettings } from "./VoiceDictionarySettings";
+>>>>>>> feat/voice-dictionary-chatgpt-grok-subscriptions
 import { ArchiveIcon, ArchiveX, CheckIcon, ChevronRightIcon, SettingsIcon } from "lucide-react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import type { CSSProperties, ReactNode } from "react";
@@ -3041,6 +3045,8 @@ export function GeneralSettingsPanel() {
           }
         />
       </SettingsSection>
+
+      <VoiceDictionarySettings />
 
       <SettingsSection id="projects-and-threads" title="Projects & threads">
         <SettingsRow

@@ -9,6 +9,7 @@ import * as Ref from "effect/Ref";
 import * as Electron from "electron";
 
 import { type DesktopSnapShotEvent, DEFAULT_CLIENT_SETTINGS } from "@t3tools/contracts";
+import { suggestVoiceDictionaryTerms } from "@t3tools/shared/voiceDictionary";
 
 import * as DesktopAssets from "../app/DesktopAssets.ts";
 import * as DesktopEnvironment from "../app/DesktopEnvironment.ts";
@@ -546,7 +547,13 @@ export const make = Effect.gen(function* () {
         const menuTemplate: Electron.MenuItemConstructorOptions[] = [];
 
         if (params.misspelledWord) {
-          for (const suggestion of params.dictionarySuggestions.slice(0, 5)) {
+          const suggestions = [
+            ...new Set([
+              ...suggestVoiceDictionaryTerms(params.misspelledWord),
+              ...params.dictionarySuggestions,
+            ]),
+          ].slice(0, 5);
+          for (const suggestion of suggestions) {
             menuTemplate.push({
               label: suggestion,
               click: () => {
@@ -554,7 +561,7 @@ export const make = Effect.gen(function* () {
               },
             });
           }
-          if (params.dictionarySuggestions.length === 0) {
+          if (suggestions.length === 0) {
             menuTemplate.push({ label: "No suggestions", enabled: false });
           }
           menuTemplate.push({ type: "separator" });

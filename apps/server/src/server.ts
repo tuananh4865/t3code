@@ -25,8 +25,23 @@ import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 import * as BackgroundPolicy from "./background/BackgroundPolicy.ts";
 import * as HostPowerMonitor from "./background/HostPowerMonitor.ts";
 import * as ServerConfig from "./config.ts";
+<<<<<<< origin/main
 import { withUntracedRequests } from "./http.ts";
 import * as ServerHttp from "./http.ts";
+=======
+import {
+  otlpTracesProxyRouteLayer,
+  assetRouteLayer,
+  attachmentUploadRouteLayer,
+  voiceRouteLayer,
+  serverEnvironmentHttpApiLayer,
+  staticAndDevRouteLayer,
+  browserApiCorsLayer,
+  httpCompressionLayer,
+  untracedRequestsLayer,
+} from "./http.ts";
+import * as ChatGptVoice from "./voice/ChatGptVoiceService.ts";
+>>>>>>> feat/voice-dictionary-chatgpt-grok-subscriptions
 import { guardHttpResponseWriteErrors } from "./httpResponseErrorGuard.ts";
 import { fixPath } from "./os-jank.ts";
 import * as Ws from "./ws.ts";
@@ -529,9 +544,14 @@ const layerProviderInstallationRefresh = Layer.effectDiscard(
 
 const layerRuntimeCoreDependenciesBase = Layer.mergeAll(
   AgentAwarenessRelay.layer,
+<<<<<<< origin/main
   // Asks T3 Connect to deliver webhooks it held while this environment was offline.
   HeldHooksWaker.layer,
   layerThreadSettlementWorker,
+=======
+  ChatGptVoice.layer,
+  ThreadSettlementWorkerLive,
+>>>>>>> feat/voice-dictionary-chatgpt-grok-subscriptions
   Layer.effectDiscard(StorageCleanup.make.pipe(Effect.flatMap((service) => service.start()))).pipe(
     Layer.provide(ProjectionStoreV2.layer),
   ),
@@ -669,6 +689,7 @@ const layerMakeRoutes = Layer.mergeAll(
       Layer.provide(WebhookRoute.layer.pipe(Layer.provide(RelayDeliveryProof.layer))),
       Layer.provide(AuthHttp.layerAuthenticatedAuth),
     ),
+<<<<<<< origin/main
     ServerHttp.layerOtlpTracesProxyRoute,
     ServerHttp.layerAssetRoute,
     ServerHttp.layerAttachmentUploadRoute,
@@ -676,6 +697,15 @@ const layerMakeRoutes = Layer.mergeAll(
     ServerBrowserStream.routeLayer,
     ServerHttp.layerStaticAndDevRoute,
     Ws.layer,
+=======
+    otlpTracesProxyRouteLayer,
+    assetRouteLayer,
+    attachmentUploadRouteLayer,
+    voiceRouteLayer,
+    deviceHubProxyRouteLayer,
+    staticAndDevRouteLayer,
+    websocketRpcRouteLayer,
+>>>>>>> feat/voice-dictionary-chatgpt-grok-subscriptions
   ),
   // The MCP session registry is provided globally (shared with V2 provider
   // sessions) rather than inline here. The orchestrator toolkit resolves

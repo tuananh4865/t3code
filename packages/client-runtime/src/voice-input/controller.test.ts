@@ -147,6 +147,26 @@ describe("resolveTranscriptCommit", () => {
       text: "one new two",
     });
   });
+
+  it("normalizes built-in and custom voice dictionary terms before committing", () => {
+    const empty = draft({ text: "", selection: { start: 0, end: 0 } });
+    expect(
+      resolveTranscriptCommit(
+        empty,
+        empty,
+        "mở tai pờ scờ ríp cho dam me",
+        "vi-VN",
+        { prompt: "", entries: [{ term: "Dầm Mê", aliases: ["dam me"] }] },
+      ),
+    ).toEqual({
+      kind: "commit",
+      text: "mở TypeScript cho Dầm Mê",
+      selection: {
+        start: "mở TypeScript cho Dầm Mê".length,
+        end: "mở TypeScript cho Dầm Mê".length,
+      },
+    });
+  });
 });
 
 describe("VoiceInputController", () => {
