@@ -6,6 +6,7 @@ import {
   MIN_AUDIO_BYTES,
   audioFileName,
   buildChatGptTranscribeHeaders,
+  normalizeVoiceTranscript,
   readTranscript,
   userTranscriptOf,
   validateAudioBytes,
@@ -89,6 +90,44 @@ describe("ChatGptVoiceService", () => {
     });
   });
 
+  describe("normalizeVoiceTranscript", () => {
+    it("trims and collapses whitespace while normalizing Vietnamese-English technical terms", () => {
+      expect(
+        normalizeVoiceTranscript("  Tại sao anh dùng S tờ tờ trên thứ ba cấp vẫn không ra đúng?  "),
+      ).toBe("Tại sao anh dùng STT trên T3 Code vẫn không ra đúng?");
+      expect(normalizeVoiceTranscript("Dùng chát g p t và cô đex với ét tê tê")).toBe(
+        "Dùng ChatGPT và Codex với STT",
+      );
+      expect(
+        normalizeVoiceTranscript(
+          "Bật tê tê ét trên tê 3 cốt rồi đóng gói ớp áp săt cho sắp ây gần",
+        ),
+      ).toBe("Bật TTS trên T3 Code rồi đóng gói app.asar cho subagent");
+      expect(
+        normalizeVoiceTranscript(
+          "Kiểm tra t3code, tê ba cốt, t3 cốt, t 3 code, tê ba code, es tê tê, s t t, tờ tờ s, t t s",
+        ),
+      ).toBe("Kiểm tra T3 Code, T3 Code, T3 Code, T3 Code, T3 Code, STT, STT, TTS, TTS");
+      expect(
+        normalizeVoiceTranscript(
+          "chat g p t, chát gpt, cô đếc, co dex, app a sa, app chấm a sa, sub ây gần, sấp ây gần",
+        ),
+      ).toBe("ChatGPT, ChatGPT, Codex, Codex, app.asar, app.asar, subagent, subagent");
+    });
+
+    it("normalizes PR phonetics only after action verbs while preserving Unicode word boundaries", () => {
+      expect(
+        normalizeVoiceTranscript(
+          "Anh bảo tạo pờ rờ rồi mở pê rờ, review pờ rờ, link pê rờ, merge pờ rờ",
+        ),
+      ).toBe("Anh bảo tạo PR rồi mở PR, review PR, link PR, merge PR");
+      expect(normalizeVoiceTranscript("Nói chuyện pờ rờ không liên quan")).toBe(
+        "Nói chuyện pờ rờ không liên quan",
+      );
+      expect(normalizeVoiceTranscript("   ")).toBe("");
+    });
+  });
+
   describe("readTranscript", () => {
     it("extracts text on 200 OK", () => {
       expect(
@@ -97,6 +136,12 @@ describe("ChatGptVoiceService", () => {
           body: JSON.stringify({ text: "Xin chào T3 Code" }),
         }),
       ).toBe("Xin chào T3 Code");
+      expect(
+        readTranscript({
+          status: 200,
+          body: JSON.stringify({ text: "  Mở thứ ba cấp kiểm tra ét tê tê  " }),
+        }),
+      ).toBe("Mở T3 Code kiểm tra STT");
       expect(
         readTranscript({
           status: 200,
@@ -136,6 +181,12 @@ describe("ChatGptVoiceService", () => {
           text: "Run all tests",
         }),
       ).toBe("Run all tests");
+      expect(
+        userTranscriptOf("thread/realtime/transcript/done", {
+          role: "user",
+          text: "  Dùng chát g p t tạo pờ rờ cho tê ba cốt ",
+        }),
+      ).toBe("Dùng ChatGPT tạo PR cho T3 Code");
       expect(
         userTranscriptOf("thread/realtime/transcript/done", {
           role: "assistant",

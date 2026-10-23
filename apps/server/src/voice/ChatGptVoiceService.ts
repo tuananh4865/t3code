@@ -127,6 +127,29 @@ export function audioFileName(mimeType: string): string {
   return "voice.webm";
 }
 
+const VOICE_TERM_REPLACEMENTS: ReadonlyArray<readonly [RegExp, string]> = [
+  [
+    /(?<![\p{L}\p{N}])(?:thứ ba cấp|tê ba cốt|tê 3 cốt|t3 cốt|t 3 code|tê ba code|t3code)(?![\p{L}\p{N}])/giu,
+    "T3 Code",
+  ],
+  [/(?<![\p{L}\p{N}])(?:s tờ tờ|ét tê tê|es tê tê|s t t)(?![\p{L}\p{N}])/giu, "STT"],
+  [/(?<![\p{L}\p{N}])(?:tê tê ét|tờ tờ s|t t s)(?![\p{L}\p{N}])/giu, "TTS"],
+  [/(?<![\p{L}\p{N}])(?:chát g p t|chat g p t|chát gpt)(?![\p{L}\p{N}])/giu, "ChatGPT"],
+  [/(?<![\p{L}\p{N}])(?:cô đex|cô đếc|co dex)(?![\p{L}\p{N}])/giu, "Codex"],
+  [/(?<![\p{L}\p{N}])(?:ớp áp săt|app a sa|app chấm a sa)(?![\p{L}\p{N}])/giu, "app.asar"],
+  [/(?<![\p{L}\p{N}])(?:sắp ây gần|sub ây gần|sấp ây gần)(?![\p{L}\p{N}])/giu, "subagent"],
+  [/(?<![\p{L}\p{N}])(tạo|mở|merge|review|link)(\s+)(?:pờ rờ|pê rờ)(?![\p{L}\p{N}])/giu, "$1$2PR"],
+];
+
+export function normalizeVoiceTranscript(rawText: string): string {
+  let normalized = rawText.replace(/\s+/g, " ").trim();
+  if (!normalized) return "";
+  for (const [pattern, replacement] of VOICE_TERM_REPLACEMENTS) {
+    normalized = normalized.replace(pattern, replacement);
+  }
+  return normalized;
+}
+
 export interface TranscribeReply {
   readonly status: number;
   readonly body: string;
@@ -139,7 +162,7 @@ export function readTranscript(reply: TranscribeReply): string {
     });
   }
   const text = (JSON.parse(reply.body) as { text?: unknown }).text;
-  return typeof text === "string" ? text : "";
+  return typeof text === "string" ? normalizeVoiceTranscript(text) : "";
 }
 
 interface CdpTarget {
@@ -255,11 +278,7 @@ async function transcribeDirect(
     throw fail("No ChatGPT access token found in ~/.codex/auth.json.", { status: 401 });
   }
   const form = new FormData();
-  form.append(
-    "file",
-    new Blob([audioBuffer], { type: mimeType }),
-    audioFileName(mimeType),
-  );
+  form.append("file", new Blob([audioBuffer], { type: mimeType }), audioFileName(mimeType));
   const response = await fetch(TRANSCRIBE_URL, {
     method: "POST",
     headers: buildChatGptTranscribeHeaders({
@@ -354,14 +373,14 @@ function createRpc(
 
 export function userTranscriptOf(method: string, params: any): string | null {
   if (method === "thread/realtime/transcript/done" && params?.role === "user") {
-    return typeof params.text === "string" ? params.text : null;
+    return typeof params.text === "string" ? normalizeVoiceTranscript(params.text) : null;
   }
   if (
     method === "thread/realtime/item/completed" &&
     params?.item?.type === "transcriptSegment" &&
     params.item.role === "user"
   ) {
-    return typeof params.item.text === "string" ? params.item.text : null;
+    return typeof params.item.text === "string" ? normalizeVoiceTranscript(params.item.text) : null;
   }
   return null;
 }
