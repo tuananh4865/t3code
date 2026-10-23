@@ -269,6 +269,7 @@ import { ComposerPendingApprovalActions } from "./ComposerPendingApprovalActions
 import { CompactComposerControlsMenu } from "./CompactComposerControlsMenu";
 import { ComposerImageThumbnail } from "./ComposerImageThumbnail";
 import { ComposerPrimaryActions } from "./ComposerPrimaryActions";
+import { ComposerVoiceControls } from "./ComposerVoiceControls";
 import { ComposerPendingApprovalPanel } from "./ComposerPendingApprovalPanel";
 import { ComposerPendingUserInputPanel } from "./ComposerPendingUserInputPanel";
 import { ComposerPlanFollowUpBanner } from "./ComposerPlanFollowUpBanner";
@@ -4285,6 +4286,20 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       }),
     );
   }, [phase, settings.followUpBehavior, submitComposer]);
+  const insertVoiceText = useCallback(
+    (text: string) => {
+      const current = promptRef.current.trimEnd();
+      setPromptFromTraits(current ? `${current} ${text}` : text);
+    },
+    [promptRef, setPromptFromTraits],
+  );
+  const sendVoiceText = useCallback(
+    (text: string) => {
+      insertVoiceText(text);
+      submitCitationAndSend();
+    },
+    [insertVoiceText, submitCitationAndSend],
+  );
   const compactThreadContext = useCallback(() => {
     if (
       !readEnvironmentScope(environmentId, AuthOrchestrationOperateScope) ||
@@ -7532,6 +7547,17 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                   }
                   className="flex shrink-0 flex-nowrap items-center justify-end gap-2"
                 >
+                  <ComposerVoiceControls
+                    disabled={
+                      isConnecting ||
+                      projectSelectionRequired ||
+                      isChoiceOnlyPendingQuestion ||
+                      activePendingIsResponding
+                    }
+                    isAgentRunning={phase === "running"}
+                    onInsertText={insertVoiceText}
+                    onSendText={sendVoiceText}
+                  />
                   {showComposerAttachAction ? (
                     <>
                       <input
